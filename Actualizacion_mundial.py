@@ -61,6 +61,8 @@ for file in files:
                 df = datos_archivo[sheet]
                 df.to_excel(writer, sheet_name=new_sheet.title, index=False, startrow=11, startcol=1)
                 clear_cell_format(new_sheet, start_row=11, start_col=2, nrows=df.shape[0], ncols=df.shape[1])
+        paises_sheet = book["(Paises)"]
+        book.remove(paises_sheet)
     
     writer.close()
     print(f"Procesado: {output_file}")
