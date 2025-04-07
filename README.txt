@@ -43,3 +43,4 @@ Cómo usarlo
 2. Verifica que la plantilla esté en la ruta especificada como template_path.
 3. Ejecuta el script.
 4. Los archivos actualizados se guardarán en la carpeta definida como output_dir.
+
