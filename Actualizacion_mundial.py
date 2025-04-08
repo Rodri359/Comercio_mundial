@@ -4,6 +4,7 @@ import logging
 from openpyxl import load_workbook
 from openpyxl.styles import Font, PatternFill, Border, Alignment, Side
 from openpyxl.chart import BarChart, Reference
+import re
 
 # Configurar logger
 logging.basicConfig(level=logging.INFO)
@@ -21,11 +22,10 @@ def insertar_formato(ws, start_row, start_col, nrows, ncols):
                             min_col=start_col, 
                             max_col=start_col + ncols):
         for cell in row:
-            cell.font = Font()              # fuente por defecto
-            cell.fill = PatternFill()       # sin relleno
-            cell.border = no_border         # sin bordes
-            cell.alignment = Alignment()    # alineación por defecto
-            # Si la celda contiene un año (valor entero entre 1900 y 2100), no se aplica el formato numérico
+            cell.font = Font()              
+            cell.fill = PatternFill()       
+            cell.border = no_border         
+            cell.alignment = Alignment()    
             if cell.value is not None and isinstance(cell.value, int) and 1900 <= cell.value <= 2100:
                 pass
             else:
@@ -45,6 +45,11 @@ def eliminar_graficas(ws):
     except Exception as e:
         logger.error(f"Error al eliminar gráficas de {ws.title}: {e}")
         return False
+
+def extraer_producto(nombre_archivo):
+    patron = r'Mercado mundial\s*-\s*(.+?)\.xlsx'
+    resultado = re.search(patron, nombre_archivo, re.IGNORECASE)
+    return resultado.group(1).strip() if resultado else None
 
 def crear_graficas_anuales(ws, fila_encabezado, col_anio):
     # Definir desde dónde arrancan los datos (excluyendo encabezados)
@@ -95,6 +100,7 @@ for directorio in os.listdir(source_dir):
 
     files = [f for f in os.listdir(dir_path) if f.endswith('.xlsx')]
     for file in files:
+        producto = extraer_producto(file)
         source_file = os.path.join(dir_path, file)
         # Se leen todas las hojas del archivo (skiprows=1 según lógica original)
         datos_archivo = pd.read_excel(source_file, sheet_name=None, skiprows=1)
@@ -127,11 +133,14 @@ for directorio in os.listdir(source_dir):
                 # Escribir dataframe a la hoja a partir de la fila 11 y columna 2 (Excel 1-based: B11)
                 df.to_excel(writer, sheet_name=sheet, index=False, startrow=11, startcol=1)
                 ws = book[sheet]
+                ws.cell(row=6, column=3, value=producto)
                 ws.sheet_view.showGridLines = False
                 nrows, ncols = df.shape
                 insertar_formato(ws, start_row=12, start_col=2, nrows=nrows, ncols=ncols)
                 eliminar_graficas(ws)
                 crear_graficas_anuales(ws, fila_encabezado=11, col_anio=2)
+
+        
         
         if "(Paises)" in book.sheetnames:
             for sheet in datos_archivo.keys():
@@ -140,12 +149,13 @@ for directorio in os.listdir(source_dir):
                     new_sheet.title = sheet  
                     writer._sheets[new_sheet.title] = new_sheet
                     df = datos_archivo[sheet]
+                    df.columns = df.columns.astype(str).str.replace(r'^Unnamed.*$', '', regex=True)
                     df.to_excel(writer, sheet_name=new_sheet.title, index=False, startrow=11, startcol=1)
+                    new_sheet.cell(row=6, column=3, value=producto)
                     new_sheet.sheet_view.showGridLines = False
                     insertar_formato(new_sheet, start_row=12, start_col=2, nrows=df.shape[0], ncols=df.shape[1])
                     eliminar_graficas(new_sheet)
                     crear_graficas_anuales(new_sheet, fila_encabezado=11, col_anio=2)
-            # Eliminar la hoja plantilla "(Paises)"
             book.remove(book["(Paises)"])
         
         writer.close()
