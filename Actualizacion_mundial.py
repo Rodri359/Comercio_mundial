@@ -31,7 +31,6 @@ def insertar_formato(ws, start_row, start_col, nrows, ncols):
             else:
                 cell.number_format = '#,##0.00'
                 
-    # Si la hoja es de países, se aplica formato porcentaje en la columna D (columna 4) a partir de la fila 12
     if ws.title in ["Países productores", "Países exportadores", "Países importadores"]:
         for row in ws.iter_rows(min_row=12, max_row=ws.max_row, min_col=4, max_col=4):
             for cell in row:
@@ -52,7 +51,6 @@ def extraer_producto(nombre_archivo):
     return resultado.group(1).strip() if resultado else None
 
 def crear_graficas_anuales(ws, fila_encabezado, col_anio):
-    # Definir desde dónde arrancan los datos (excluyendo encabezados)
     fila_data = fila_encabezado + 1
     ultima_fila = fila_data
     for r in range(fila_data, ws.max_row + 1):
@@ -102,8 +100,7 @@ for directorio in os.listdir(source_dir):
     for file in files:
         producto = extraer_producto(file)
         source_file = os.path.join(dir_path, file)
-        # Se leen todas las hojas del archivo (skiprows=1 según lógica original)
-        datos_archivo = pd.read_excel(source_file, sheet_name=None, skiprows=1)
+        datos_archivo = pd.read_excel(source_file, sheet_name=None)
         base_name = os.path.splitext(file)[0]
         output_file = os.path.join(output_dir, f"{base_name}_actualizado.xlsx")
         
@@ -126,12 +123,10 @@ for directorio in os.listdir(source_dir):
         logger.info(f"Plantilla utilizada: {workbook_path}")
         logger.info(f"Hojas en plantilla: {book.sheetnames}")
         
-        # Procesar las hojas que ya existen en la plantilla según los datos encontrados
         for sheet in list(book.sheetnames):
             if sheet != "(Paises)" and sheet in datos_archivo:
                 df = datos_archivo[sheet]
-                # Escribir dataframe a la hoja a partir de la fila 11 y columna 2 (Excel 1-based: B11)
-                df.to_excel(writer, sheet_name=sheet, index=False, startrow=11, startcol=1)
+                df.to_excel(writer, sheet_name=sheet, index=False, startrow=11, startcol=1, header=False)
                 ws = book[sheet]
                 ws.cell(row=6, column=3, value=producto)
                 ws.sheet_view.showGridLines = False
@@ -150,7 +145,7 @@ for directorio in os.listdir(source_dir):
                     writer._sheets[new_sheet.title] = new_sheet
                     df = datos_archivo[sheet]
                     df.columns = df.columns.astype(str).str.replace(r'^Unnamed.*$', '', regex=True)
-                    df.to_excel(writer, sheet_name=new_sheet.title, index=False, startrow=11, startcol=1)
+                    df.to_excel(writer, sheet_name=new_sheet.title, index=False, startrow=11, startcol=1, header=False)
                     new_sheet.cell(row=6, column=3, value=producto)
                     new_sheet.sheet_view.showGridLines = False
                     insertar_formato(new_sheet, start_row=12, start_col=2, nrows=df.shape[0], ncols=df.shape[1])
