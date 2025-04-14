@@ -5,6 +5,8 @@ from openpyxl import load_workbook
 from openpyxl.styles import Font, PatternFill, Border, Alignment, Side
 from openpyxl.chart import BarChart, Reference
 import re
+from openpyxl.drawing.image import Image
+
 
 # Configurar logger
 logging.basicConfig(level=logging.INFO)
@@ -70,13 +72,52 @@ def crear_graficas_anuales(ws, fila_encabezado, col_anio):
     data_valor = Reference(ws, min_col=col_anio + 1, min_row=fila_data, max_row=ultima_fila)
     chart_value.add_data(data_valor, titles_from_data=False)
     chart_value.set_categories(year_categories)
+    chart_value.x_axis.scaling.orientation = "maxMin"
     chart_value.x_axis.delete = False   
     chart_value.y_axis.delete = False   
     chart_value.y_axis.scaling.min = 0
     chart_value.legend = None
     chart_value.series[0].graphicalProperties.solidFill = "4472C4"
-    ws.add_chart(chart_value, "I10")
     
+    # Calcular el valor máximo en la serie para definir el formato del eje.
+    # Se asume que los datos de la serie se encuentran en una columna.
+    max_val = None
+    for row in ws.iter_rows(min_row=fila_data, max_row=ultima_fila, min_col=col_anio+1, max_col=col_anio+1):
+        for cell in row:
+            try:
+                valor = float(cell.value)
+                if max_val is None or valor > max_val:
+                    max_val = valor
+            except (ValueError, TypeError):
+                continue
+
+    # Cambiar número formato del eje Y y asignar título al gráfico según el valor máximo
+    if max_val is not None:
+        if max_val >= 1_000_000:
+            numeral_label = "Millones"
+            chart_value.y_axis.number_format = '#,##0.00,,'
+        elif max_val >= 1000:
+            numeral_label = "Miles"
+            chart_value.y_axis.number_format = '#,##0.00,'
+        else:
+            numeral_label = ""
+            chart_value.y_axis.number_format = '#,##0.00'
+        
+        # Obtener valores de las celdas C10 y C11
+        cell_c10 = ws["C10"].value if ws["C10"].value is not None else ""
+        cell_c11 = ws["C11"].value if ws["C11"].value is not None else ""
+        # Quitar paréntesis de C11
+        cell_c11_clean = cell_c11.strip("()")
+        
+        if numeral_label:
+            chart_value.title = f"{cell_c10} ({numeral_label} de {cell_c11_clean})"
+        else:
+            chart_value.title = cell_c10
+    else:
+        chart_value.title = ws["C10"].value if ws["C10"].value is not None else ""
+    chart_value.title.overlay = False
+
+    ws.add_chart(chart_value, "I10")
     return True
 
 # Configuración de rutas
@@ -102,7 +143,7 @@ for directorio in os.listdir(source_dir):
         source_file = os.path.join(dir_path, file)
         datos_archivo = pd.read_excel(source_file, sheet_name=None)
         base_name = os.path.splitext(file)[0]
-        output_file = os.path.join(output_dir, f"{base_name}_actualizado.xlsx")
+        output_file = os.path.join(output_dir, f"{base_name}.xlsx")
         
         # Selección de plantilla según el directorio
         if directorio.endswith('Plantilla A'):
@@ -142,6 +183,10 @@ for directorio in os.listdir(source_dir):
                 if sheet not in book.sheetnames:
                     new_sheet = book.copy_worksheet(book["(Paises)"])
                     new_sheet.title = sheet  
+                    img_path = 'fira.png'
+                    imagen_fira = Image(img_path)
+                    imagen_fira.anchor = 'J2'
+                    new_sheet.add_image(imagen_fira)
                     writer._sheets[new_sheet.title] = new_sheet
                     df = datos_archivo[sheet]
                     df.columns = df.columns.astype(str).str.replace(r'^Unnamed.*$', '', regex=True)
