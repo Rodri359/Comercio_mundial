@@ -34,8 +34,8 @@ def insertar_formato(ws, start_row, start_col, nrows, ncols):
             else:
                 cell.number_format = '#,##0.00'
                 
-    if ws.title in ["Países productores", "Países exportadores", "Países importadores"]:
-        for row in ws.iter_rows(min_row=12, max_row=ws.max_row, min_col=4, max_col=4):
+    if ws.title in ["Países productores", "Países exportadores", "Países importadores", "Países consumidores"]:
+        for row in ws.iter_rows(min_row=12, max_row=ws.max_row, min_col=5, max_col=5):
             for cell in row:
                 cell.number_format = '0.00%'
 
@@ -73,7 +73,6 @@ def seleccionar_plantilla(directorio, template_path, template_names):
                 return os.path.join(template_path, template_names[0])
     # Por defecto
     return os.path.join(template_path, template_names[0])
-
 def crear_graficas_anuales(ws, fila_encabezado, col_anio):
     # Inicia en la fila inmediatamente debajo del encabezado
     fila_data = fila_encabezado + 1
@@ -88,7 +87,7 @@ def crear_graficas_anuales(ws, fila_encabezado, col_anio):
 
     # Siempre toma los primeros 10 registros (o menos, si no hay 10)
     graf_start = fila_data
-    graf_end = min(fila_data + 10 - 1, ultima_fila)
+    graf_end = min(fila_data + 11 - 1, ultima_fila)
 
     # Referencias para categorías y datos graficados
     year_categories = Reference(ws,
@@ -155,20 +154,20 @@ def crear_graficas_anuales(ws, fila_encabezado, col_anio):
         cell_c11_clean = str(cell_c11).strip("()")
 
         if numeral_label:
-            chart_value.title = f"{cell_c10} ({numeral_label} de {cell_c11_clean})"
+            chart_value.title = f"{cell_c10} ({cell_c11_clean})"
         else:
             chart_value.title = cell_c10
     else:
         chart_value.title = ws["C10"].value if ws["C10"].value is not None else ""
     chart_value.title.overlay = False
 
-    ws.add_chart(chart_value, "I10")
+    ws.add_chart(chart_value, "K10")
     return True
 
 # Configuración de rutas
-source_dir = r"../Datos_Extraidos"
-template_path = r"../estadisticas_macro_shared/estadisticas_macro_shared/Plantillas"
-output_dir = r"Resultados"
+source_dir = r"../USDA"
+template_path = r"../estadisticas_macro_shared/estadisticas_macro_shared/Plantillas/USDA"
+output_dir = r"ResultadosUSDA"
 template_names = [n for n in os.listdir(template_path) if n.endswith('.xlsx') and n.startswith('Mercado mundial')]
 
 if not os.path.exists(template_path):
@@ -210,8 +209,13 @@ for directorio in os.listdir(source_dir):
                 ws.sheet_view.showGridLines = False
                 nrows, ncols = df.shape
                 insertar_formato(ws, start_row=12, start_col=2, nrows=nrows, ncols=ncols)
-                #eliminar_graficas(ws)
-                #crear_graficas_anuales(ws, fila_encabezado=11, col_anio=2)
+                ultima_fila_datos = 11 + nrows  
+                cantidad_filas_vacias = 4    
+                for row in range(ultima_fila_datos + 1, ultima_fila_datos + 1 + cantidad_filas_vacias):
+                    for col in range(1, ws.max_column + 1):
+                        ws.cell(row=row, column=col).value = None
+                eliminar_graficas(ws)
+                crear_graficas_anuales(ws, fila_encabezado=11, col_anio=2)
 
         
         
@@ -231,6 +235,11 @@ for directorio in os.listdir(source_dir):
                     new_sheet.cell(row=6, column=3, value=producto)
                     new_sheet.sheet_view.showGridLines = False
                     insertar_formato(new_sheet, start_row=12, start_col=2, nrows=df.shape[0], ncols=df.shape[1])
+                    ultima_fila_datos = 11 + nrows  
+                    cantidad_filas_vacias = 6        
+                    for row in range(ultima_fila_datos + 1, ultima_fila_datos + 1 + cantidad_filas_vacias):
+                        for col in range(1, ws.max_column + 1):
+                            ws.cell(row=row, column=col).value = None
                     eliminar_graficas(new_sheet)
                     crear_graficas_anuales(new_sheet, fila_encabezado=11, col_anio=2)
             book.remove(book["(Paises)"])
