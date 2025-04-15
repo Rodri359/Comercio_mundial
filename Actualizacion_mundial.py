@@ -150,7 +150,7 @@ def crear_graficas_anuales(ws, fila_encabezado, col_anio):
         
         cell_c10 = ws["C10"].value if ws["C10"].value is not None else ""
         cell_c11 = ws["C11"].value if ws["C11"].value is not None else ""
-        cell_c11_clean = cell_c11.strip("()")
+        cell_c11_clean = str(cell_c11).strip("()")
         
         if numeral_label:
             chart_value.title = f"{cell_c10} ({numeral_label} de {cell_c11_clean})"
