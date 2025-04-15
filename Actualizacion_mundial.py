@@ -6,6 +6,7 @@ from openpyxl.styles import Font, PatternFill, Border, Alignment, Side
 from openpyxl.chart import BarChart, Reference
 import re
 from openpyxl.drawing.image import Image
+import unicodedata
 
 
 # Configurar logger
@@ -52,26 +53,71 @@ def extraer_producto(nombre_archivo):
     resultado = re.search(patron, nombre_archivo, re.IGNORECASE)
     return resultado.group(1).strip() if resultado else None
 
+def seleccionar_plantilla(directorio, template_path, template_names):
+    mapping = {
+        'Plantilla A': template_names[0],
+        'Plantilla B': template_names[1],
+        'Plantilla C': template_names[2],
+        'Plantilla D': template_names[3],
+        'Plantilla E': template_names[4],
+        'Plantilla F': template_names[5],
+        'Plantilla G': template_names[6],
+        'Plantilla H': template_names[7],
+        'Plantilla I': template_names[8]
+    }
+    for key, template in mapping.items():
+        if directorio.endswith(key):
+            return os.path.join(template_path, template)
+    # Por defecto
+    return os.path.join(template_path, template_names[0])
+
 def crear_graficas_anuales(ws, fila_encabezado, col_anio):
+    # Determinar la fila de inicio de datos
     fila_data = fila_encabezado + 1
-    ultima_fila = fila_data
-    for r in range(fila_data, ws.max_row + 1):
-        if ws.cell(row=r, column=col_anio).value is not None:
-            ultima_fila = r - 1
-    if ultima_fila < fila_data:
+
+    # Recolectar las filas en las que la celda en la columna de años NO es None
+    data_rows = [r for r in range(fila_data, ws.max_row + 1) 
+                 if ws.cell(row=r, column=col_anio).value is not None]
+    if not data_rows:
         logger.info("No se encontraron datos para graficar")
         return False
+    ultima_fila = data_rows[-1]
 
+    # Contar las columnas con datos en la primera fila de datos
+    valid_cols = 0
+    for col in range(col_anio, ws.max_column + 1):
+        if ws.cell(row=fila_data, column=col).value is not None:
+            valid_cols += 1
+
+    # Si solo existe la columna de años, usar solo los últimos 10 registros
+    if valid_cols == 1:
+        start_chart = max(fila_data, ultima_fila - 10 + 1)
+    else:
+        start_chart = fila_data
+
+    # Referencias para categorías y datos
     year_categories = Reference(ws,
                                 min_col=col_anio,
-                                min_row=fila_data,
+                                min_row=start_chart,
                                 max_row=ultima_fila)
-    
     chart_value = BarChart()
     chart_value.type = "col"
-    data_valor = Reference(ws, min_col=col_anio + 1, min_row=fila_data, max_row=ultima_fila)
+    
+    # Para el rango de datos:
+    # Si solo hay la columna de años, se asume que se quiere graficar esos valores (o se puede ajustar la lógica)
+    if valid_cols == 1:
+        data_valor = Reference(ws,
+                               min_col=col_anio,
+                               min_row=start_chart,
+                               max_row=ultima_fila)
+    else:
+        data_valor = Reference(ws,
+                               min_col=col_anio + 1,
+                               min_row=start_chart,
+                               max_row=ultima_fila)
     chart_value.add_data(data_valor, titles_from_data=False)
     chart_value.set_categories(year_categories)
+    
     chart_value.x_axis.scaling.orientation = "maxMin"
     chart_value.x_axis.delete = False   
     chart_value.y_axis.delete = False   
@@ -79,10 +125,9 @@ def crear_graficas_anuales(ws, fila_encabezado, col_anio):
     chart_value.legend = None
     chart_value.series[0].graphicalProperties.solidFill = "4472C4"
     
-    # Calcular el valor máximo en la serie para definir el formato del eje.
-    # Se asume que los datos de la serie se encuentran en una columna.
+    # Calcular el valor máximo en la serie para definir el formato del eje (se asume que los datos a graficar están en data_valor)
     max_val = None
-    for row in ws.iter_rows(min_row=fila_data, max_row=ultima_fila, min_col=col_anio+1, max_col=col_anio+1):
+    for row in ws.iter_rows(min_row=start_chart, max_row=ultima_fila, min_col=(col_anio if valid_cols == 1 else col_anio+1), max_col=(col_anio if valid_cols == 1 else col_anio+1)):
         for cell in row:
             try:
                 valor = float(cell.value)
@@ -91,7 +136,7 @@ def crear_graficas_anuales(ws, fila_encabezado, col_anio):
             except (ValueError, TypeError):
                 continue
 
-    # Cambiar número formato del eje Y y asignar título al gráfico según el valor máximo
+    # Formateo del eje Y y título del gráfico
     if max_val is not None:
         if max_val >= 1_000_000:
             numeral_label = "Millones"
@@ -103,10 +148,8 @@ def crear_graficas_anuales(ws, fila_encabezado, col_anio):
             numeral_label = ""
             chart_value.y_axis.number_format = '#,##0.00'
         
-        # Obtener valores de las celdas C10 y C11
         cell_c10 = ws["C10"].value if ws["C10"].value is not None else ""
         cell_c11 = ws["C11"].value if ws["C11"].value is not None else ""
-        # Quitar paréntesis de C11
         cell_c11_clean = cell_c11.strip("()")
         
         if numeral_label:
@@ -145,16 +188,8 @@ for directorio in os.listdir(source_dir):
         base_name = os.path.splitext(file)[0]
         output_file = os.path.join(output_dir, f"{base_name}.xlsx")
         
-        # Selección de plantilla según el directorio
-        if directorio.endswith('Plantilla A'):
-            workbook_path = os.path.join(template_path, template_names[0])
-        elif directorio.endswith('Plantilla B'):
-            workbook_path = os.path.join(template_path, template_names[1])
-        elif directorio.endswith('Plantilla C'):
-            workbook_path = os.path.join(template_path, template_names[2])
-        else:
-            # Por defecto, usa la primera plantilla
-            workbook_path = os.path.join(template_path, template_names[0])
+        workbook_path = seleccionar_plantilla(os.path.basename(dir_path), template_path, template_names)
+
         
         book = load_workbook(workbook_path)
         writer = pd.ExcelWriter(output_file, engine='openpyxl')
